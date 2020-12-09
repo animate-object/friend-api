@@ -1,0 +1,44 @@
+service: friend-service
+frameworkVersion: ">=1.1.1 <=2.15.0"
+
+provider:
+  name: aws
+  runtime: provided
+  stage: dev
+  region: ${env:AWS_DEFAULT_REGION, 'us-east-1'}
+
+package:
+  exclude:
+    - .deno_dir/gen/file
+    - node_modules
+    - package-lock.json
+
+functions:
+  getFriends:
+    handler: src/main.getFriend
+    layers:
+      - !GetAtt Deno.Outputs.LayerArn
+    memorySize: 128
+    description: Make a friend
+    events:
+      - http:
+          path: friend
+          method: get
+          cors: true
+
+resources:
+  Transform: AWS::Serverless-2016-10-31
+  Resources:
+    Deno:
+      Type: AWS::Serverless::Application
+      Properties:
+        Location:
+          ApplicationId: arn:aws:serverlessrepo:us-east-1:390065572566:applications/deno
+          SemanticVersion: 1.5.2
+
+plugins:
+  - serverless-scriptable-plugin
+
+custom:
+  scriptHooks:
+    before:package:createDeploymentArtifacts: DENO_DIR=.deno_dir deno cache src/main.ts && cp -R .deno_dir/gen/file/$PWD/ .deno_dir/LAMBDA_TASK_ROOT
