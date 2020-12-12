@@ -23,7 +23,7 @@ functions:
     events:
       - http:
           path: friend
-          method: get
+          method: post
           cors: true
 
 resources:
