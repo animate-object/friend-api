@@ -23,7 +23,7 @@
  */
 
 import { World } from "../generate.ts";
-import { Edge } from "../graph/edges.ts";
+import edges, { Edge } from "../graph/edges.ts";
 import { KnownObjects, Vertex } from "../graph/vertex.ts";
 import { Arrays, En, Strings } from "../util/index.ts";
 import { associative, existential, Fact } from "./fact.ts";
@@ -50,12 +50,11 @@ interface Nominal {
 
 export const existentialThought = (vertex: Vertex): [Thought, Fact[]] => {
   const template = Arrays.sample(EXISTENTIAL_THOUGHTS);
-  const thought = {
-    text: Strings.fillIn(template, {
-      noun: Strings.hilite(nominalize(vertex as KnownObjects)),
-    }),
-  };
-  return [thought, [existential(vertex)]];
+  const text = Strings.fillIn(template, {
+    noun: Strings.hilite(nominalize(vertex as KnownObjects)),
+  });
+
+  return [{ text: En.capitalizeWithTags(text) }, [existential(vertex)]];
 };
 
 export const simpleAssociativeThought = (
@@ -64,16 +63,73 @@ export const simpleAssociativeThought = (
   edge: Edge
 ): [Thought, Fact[]] => {
   const template = Arrays.sample(ASSOCIATIVE_THOUGHTS[edge.t.name]);
-  const thought = {
-    text: Strings.fillIn(template, {
-      from: Strings.hilite(nominalize(from as KnownObjects, true)),
-      to: Strings.hilite(nominalize(to as KnownObjects, true)),
-    }),
-  };
+  const text = Strings.fillIn(template, {
+    from: Strings.hilite(nominalize(from as KnownObjects, true)),
+    to: Strings.hilite(nominalize(to as KnownObjects, true)),
+  });
+
   return [
-    thought,
+    { text: En.capitalizeWithTags(text) },
     [existential(from), existential(to), associative(from, to, edge.t.name)],
   ];
+};
+
+type ExpositionAcc = {
+  facts: Fact[];
+  runningThought: string;
+  identifiedV: boolean;
+};
+export const expound = (vertex: Vertex): [Thought, Fact[]] => {
+  const generateN = Math.min(vertex.edges.size, 3);
+
+  let [identifiedV, startingThought]: [boolean, string] = [false, ""];
+  if (Math.random() > 0.8) {
+    const template = Arrays.sample(EXISTENTIAL_THOUGHTS);
+    const text = Strings.fillIn(template, {
+      noun: Strings.hilite(nominalize(vertex as KnownObjects)),
+    });
+    [identifiedV, startingThought] = [true, text];
+  }
+
+  const { facts, runningThought }: ExpositionAcc = Array.from(vertex.edges)
+    .slice(0, generateN)
+    .reduce(
+      (
+        { facts, runningThought, identifiedV }: ExpositionAcc,
+        e: Edge
+      ): ExpositionAcc => {
+        const template = Arrays.sample(ASSOCIATIVE_THOUGHTS[e.t.name]);
+        const next = Strings.fillIn(template, {
+          from: !identifiedV
+            ? Strings.hilite(nominalize(vertex as KnownObjects, true))
+            : En.pronoun(vertex),
+          to: Strings.hilite(nominalize(e.to as KnownObjects, true)),
+        });
+
+        // basically want to do this on the first loop if it hasn't been done.
+        const wasIdentified = true;
+
+        return {
+          facts: [
+            ...facts,
+            existential(e.to),
+            associative(vertex, e.to, e.t.name),
+          ],
+          runningThought:
+            runningThought === ""
+              ? En.capitalizeWithTags(next)
+              : runningThought + ". " + En.capitalizeWithTags(next),
+          identifiedV: wasIdentified,
+        };
+      },
+      {
+        facts: [existential(vertex)],
+        runningThought: startingThought,
+        identifiedV,
+      }
+    );
+
+  return [{ text: runningThought }, facts];
 };
 
 export const randomExistentialThought = (world: World): [Thought, Fact[]] => {
@@ -88,11 +144,17 @@ export const randomSimpleAssociativeThought = (
   return simpleAssociativeThought(vertWithEdge, edge.to, edge);
 };
 
+export const randomExpositionalThought = (world: World): [Thought, Fact[]] => {
+  const candidateVertex = Arrays.shuffled(world).find((v) => v.edges.size > 1)!;
+  return expound(candidateVertex);
+};
+
 type ThoughtGenerator = (w: World) => [Thought, Fact[]];
 
 export const THOUGHT_GENERATORS: ThoughtGenerator[] = [
   randomExistentialThought,
   randomSimpleAssociativeThought,
+  randomExpositionalThought,
 ];
 
 interface Knowledge {
@@ -110,7 +172,8 @@ export const thinkAboutTheWorld = (
   const { thoughts, facts } = Arrays.times(desiredThoughts).reduce(
     (acc: DataAccumulator, _) => {
       const [newThought, newFacts] = Arrays.weightedSample([
-        [randomSimpleAssociativeThought, 5],
+        [randomSimpleAssociativeThought, 6],
+        [randomExpositionalThought, 2],
         [randomExistentialThought, 1],
       ])(world);
       return {
@@ -124,7 +187,6 @@ export const thinkAboutTheWorld = (
     }
   );
 
-  // TODO generate questions based on the accumulated facts
   const questions: Question[] = [];
 
   return {

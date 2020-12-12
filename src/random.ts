@@ -10,7 +10,6 @@ import {
   Food,
   Flavor,
   LocVariant,
-  Vertex,
   KnownObjects,
   IdeaVariant,
   Idea,

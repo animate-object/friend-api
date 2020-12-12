@@ -94,9 +94,9 @@ export const ASSOCIATIVE_THOUGHTS: Record<EdgeName, string[]> = {
 };
 
 export const EXISTENTIAL_THOUGHTS = [
-  "It is known that there is {{noun}}.",
-  "I know of {{noun}}.",
-  "There is {{noun}}.",
-  "There is {{noun}} out there.",
-  "There is {{noun}} out there somewhere, you know.",
+  "It is known that there is {{noun}}",
+  "I know of {{noun}}",
+  "There is {{noun}}",
+  "There is {{noun}} out there",
+  "There is {{noun}} out there somewhere, you know",
 ];
